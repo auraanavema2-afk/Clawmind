@@ -253,6 +253,19 @@
     .logo .dot{animation:none}
   }
 
+  /* Mobile: strengthen the dark vignette and add text shadows so every
+     block stays readable over the swarm on small screens. */
+  @media (max-width:768px){
+    .veil{
+      background:
+        radial-gradient(125% 95% at 50% 0%, rgba(0,0,0,0) 24%, rgba(0,0,0,.72) 100%),
+        radial-gradient(100% 60% at 50% 110%, rgba(55,138,221,.10), rgba(0,0,0,0) 60%);
+    }
+    h1,h2,h3,.lead,.eyebrow,.force p,.flow .step,.lang-chip{
+      text-shadow:0 1px 16px rgba(0,0,0,.9);
+    }
+  }
+
   @media (max-width:640px){
     section{padding:90px 0}
     header{padding:16px 20px}
@@ -476,11 +489,23 @@ document.querySelectorAll('.waitlist-form').forEach(function(form){
   // brand accent in normalized rgb
   const ACC = { r:55/255, g:138/255, b:221/255 };
 
-  // --- node (constellation) config ---
-  const NODE_COUNT = 150;
+  // --- device / quality tier ---
+  // Treat small screens, mobile UAs, and low-core/low-memory devices as "low end":
+  // fewer particles, shorter connection distance, lower pixel-ratio cap.
+  const _ua = navigator.userAgent || '';
+  const LOW_END =
+    window.matchMedia('(max-width: 768px)').matches ||
+    /Mobi|Android|iPhone|iPod/i.test(_ua) ||
+    (navigator.hardwareConcurrency || 8) <= 4 ||
+    (navigator.deviceMemory || 8) <= 4;
+
+  // --- node (constellation) config (scaled for device) ---
+  const NODE_COUNT = LOW_END ? 70 : 150;
   const NODE_BOUNDS = { x:560, y:340, z:240 };
-  const MAX_DIST = 165;
+  const MAX_DIST = LOW_END ? 128 : 165;
   const MAX_DIST_SQ = MAX_DIST*MAX_DIST;
+  const BG_COUNT = LOW_END ? 900 : 2600;
+  const PR_CAP = LOW_END ? 1.5 : 2;
   const nodes = [];
 
   // mouse + scroll state
@@ -508,7 +533,7 @@ document.querySelectorAll('.waitlist-form').forEach(function(form){
     try{
       renderer = new THREE.WebGLRenderer({ canvas:canvas, antialias:true, alpha:true });
     }catch(e){ canvas.style.display='none'; return false; }
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, PR_CAP));
     renderer.setSize(width, height);
 
     scene = new THREE.Scene();
@@ -521,7 +546,7 @@ document.querySelectorAll('.waitlist-form').forEach(function(form){
 
     // ---- ambient background particles (thousands) ----
     bgGroup = new THREE.Group();
-    const COUNT = 2600;
+    const COUNT = BG_COUNT;
     const positions = new Float32Array(COUNT*3);
     for(let i=0;i<COUNT;i++){
       positions[i*3]   = (Math.random()-0.5)*1700;
@@ -531,7 +556,7 @@ document.querySelectorAll('.waitlist-form').forEach(function(form){
     const bgGeo = new THREE.BufferGeometry();
     bgGeo.setAttribute('position', new THREE.BufferAttribute(positions,3));
     const bgMat = new THREE.PointsMaterial({
-      size:5.5, map:tex, color:0x378ADD,
+      size:LOW_END?4.5:5.5, map:tex, color:0x378ADD,
       transparent:true, opacity:.85, depthWrite:false,
       blending:THREE.AdditiveBlending, sizeAttenuation:true
     });
@@ -557,7 +582,7 @@ document.querySelectorAll('.waitlist-form').forEach(function(form){
     const nodeGeo = new THREE.BufferGeometry();
     nodeGeo.setAttribute('position', new THREE.BufferAttribute(nodePos,3));
     const nodeMat = new THREE.PointsMaterial({
-      size:11, map:tex, color:0xbfe0ff,
+      size:LOW_END?9:11, map:tex, color:0xbfe0ff,
       transparent:true, opacity:.95, depthWrite:false,
       blending:THREE.AdditiveBlending, sizeAttenuation:true
     });
@@ -652,7 +677,10 @@ document.querySelectorAll('.waitlist-form').forEach(function(form){
     renderer.render(scene, camera);
   }
 
-  function loop(){ render(); requestAnimationFrame(loop); }
+  let rafId = null;
+  function loop(){ render(); rafId = requestAnimationFrame(loop); }
+  function start(){ if(rafId === null){ if(clock) clock.start(); rafId = requestAnimationFrame(loop); } }
+  function stop(){ if(rafId !== null){ cancelAnimationFrame(rafId); rafId = null; if(clock) clock.stop(); } }
 
   function onResize(){
     width = window.innerWidth; height = window.innerHeight;
@@ -678,7 +706,11 @@ document.querySelectorAll('.waitlist-form').forEach(function(form){
       scrollProgress = max>0 ? Math.min(window.scrollY/max,1) : 0;
     }, { passive:true });
     window.addEventListener('resize', onResize);
-    loop();
+    // Pause rendering entirely when the tab/page isn't visible (saves battery/CPU).
+    document.addEventListener('visibilitychange', function(){
+      if(document.hidden) stop(); else start();
+    });
+    start();
   }
 })();
 </script>

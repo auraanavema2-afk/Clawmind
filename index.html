@@ -1,0 +1,686 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>ClawMind — One goal in. Finished work out.</title>
+<meta name="description" content="ClawMind commands a swarm of AI agents that finish real work while you sleep. Speak a goal — wake up to it done." />
+
+<!-- Fonts: Syne (display) + Manrope (body) -->
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=Manrope:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+
+<style>
+  :root{
+    --accent:#378ADD;
+    --accent-soft:rgba(55,138,221,.16);
+    --accent-glow:rgba(55,138,221,.45);
+    --bg:#000000;
+    --text:#ffffff;
+    --muted:rgba(255,255,255,.62);
+    --muted-dim:rgba(255,255,255,.42);
+    --glass:rgba(255,255,255,.035);
+    --glass-border:rgba(255,255,255,.09);
+    --maxw:1180px;
+  }
+
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
+  body{
+    background:var(--bg);
+    color:var(--text);
+    font-family:'Manrope',system-ui,sans-serif;
+    font-weight:400;
+    line-height:1.6;
+    overflow-x:hidden;
+    -webkit-font-smoothing:antialiased;
+    text-rendering:optimizeLegibility;
+  }
+
+  /* ---------- WebGL canvas ---------- */
+  #swarm{
+    position:fixed;
+    inset:0;
+    width:100%;
+    height:100%;
+    z-index:-2;
+    display:block;
+  }
+  /* dark vignette + depth so text stays legible over the swarm */
+  .veil{
+    position:fixed;
+    inset:0;
+    z-index:-1;
+    pointer-events:none;
+    background:
+      radial-gradient(120% 90% at 50% 0%, rgba(0,0,0,0) 38%, rgba(0,0,0,.55) 100%),
+      radial-gradient(100% 60% at 50% 110%, rgba(55,138,221,.10), rgba(0,0,0,0) 60%);
+  }
+
+  /* ---------- Layout ---------- */
+  .wrap{max-width:var(--maxw);margin:0 auto;padding:0 28px}
+  section{position:relative;padding:120px 0}
+
+  /* ---------- Header ---------- */
+  header{
+    position:fixed;top:0;left:0;right:0;z-index:50;
+    display:flex;align-items:center;justify-content:space-between;
+    padding:20px 28px;
+    backdrop-filter:blur(8px);
+    -webkit-backdrop-filter:blur(8px);
+    background:linear-gradient(180deg, rgba(0,0,0,.55), rgba(0,0,0,0));
+  }
+  .logo{
+    font-family:'Syne',sans-serif;font-weight:800;font-size:1.32rem;
+    letter-spacing:.5px;display:flex;align-items:center;gap:10px;
+  }
+  .logo .dot{
+    width:11px;height:11px;border-radius:50%;
+    background:var(--accent);
+    box-shadow:0 0 14px 3px var(--accent-glow);
+    animation:pulseDot 3.2s ease-in-out infinite;
+  }
+  @keyframes pulseDot{0%,100%{opacity:.55;transform:scale(.85)}50%{opacity:1;transform:scale(1.15)}}
+  .nav-cta{
+    font-size:.92rem;font-weight:600;color:var(--text);text-decoration:none;
+    padding:9px 18px;border-radius:999px;
+    border:1px solid var(--glass-border);
+    background:var(--glass);
+    backdrop-filter:blur(10px);
+    transition:.3s;
+  }
+  .nav-cta:hover{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft);color:#fff}
+
+  /* ---------- Typography ---------- */
+  .eyebrow{
+    font-size:.78rem;font-weight:600;letter-spacing:.32em;text-transform:uppercase;
+    color:var(--accent);margin-bottom:22px;
+  }
+  h1{
+    font-family:'Syne',sans-serif;font-weight:800;
+    font-size:clamp(2.7rem,7vw,5.6rem);
+    line-height:1.02;letter-spacing:-.02em;
+    text-shadow:0 0 50px rgba(55,138,221,.25);
+  }
+  h2{
+    font-family:'Syne',sans-serif;font-weight:800;
+    font-size:clamp(2rem,4.6vw,3.4rem);
+    line-height:1.08;letter-spacing:-.02em;margin-bottom:22px;
+  }
+  h3{font-family:'Syne',sans-serif;font-weight:700;font-size:1.18rem;letter-spacing:.01em}
+  .lead{font-size:clamp(1.05rem,1.6vw,1.32rem);color:var(--muted);max-width:62ch}
+  .accent{color:var(--accent)}
+
+  /* ---------- Hero ---------- */
+  .hero{
+    min-height:100vh;display:flex;flex-direction:column;justify-content:center;
+    padding-top:120px;padding-bottom:80px;
+  }
+  .hero h1{max-width:16ch}
+  .hero .lead{margin:26px 0 38px}
+
+  /* ---------- Waitlist form ---------- */
+  .waitlist-form{
+    display:flex;gap:12px;flex-wrap:wrap;max-width:520px;
+  }
+  .waitlist-form input[type="email"]{
+    flex:1;min-width:220px;
+    background:var(--glass);
+    border:1px solid var(--glass-border);
+    color:#fff;font-family:inherit;font-size:1rem;
+    padding:15px 18px;border-radius:14px;
+    backdrop-filter:blur(10px);
+    transition:.25s;
+  }
+  .waitlist-form input::placeholder{color:var(--muted-dim)}
+  .waitlist-form input:focus{
+    outline:none;border-color:var(--accent);
+    box-shadow:0 0 0 3px var(--accent-soft),0 0 28px rgba(55,138,221,.25);
+  }
+  .btn{
+    cursor:pointer;border:none;font-family:'Syne',sans-serif;font-weight:700;
+    font-size:1rem;letter-spacing:.01em;color:#001226;
+    padding:15px 26px;border-radius:14px;
+    background:var(--accent);
+    box-shadow:0 0 0 0 var(--accent-glow);
+    transition:.3s transform,.3s box-shadow,.3s filter;
+    white-space:nowrap;
+  }
+  .btn:hover{transform:translateY(-2px);box-shadow:0 10px 40px -6px var(--accent-glow);filter:brightness(1.08)}
+  .btn:active{transform:translateY(0)}
+  .btn:focus-visible{outline:none;box-shadow:0 0 0 3px #000,0 0 0 6px var(--accent)}
+  .form-note{font-size:.85rem;color:var(--muted-dim);margin-top:14px}
+  .success{
+    display:none;align-items:center;gap:14px;max-width:520px;
+    padding:18px 22px;border-radius:16px;
+    background:var(--glass);border:1px solid var(--accent);
+    backdrop-filter:blur(12px);
+    box-shadow:0 0 36px -8px var(--accent-glow);
+    font-weight:600;
+  }
+  .success.show{display:flex}
+  .success .check{
+    flex:0 0 auto;width:34px;height:34px;border-radius:50%;
+    display:grid;place-items:center;background:var(--accent);color:#001226;font-weight:800;
+  }
+
+  /* ---------- Superhuman feature ---------- */
+  .superhuman .lead{margin-bottom:30px}
+  .flow{
+    display:flex;flex-wrap:wrap;gap:12px;margin-top:8px;
+  }
+  .flow .step{
+    font-size:.9rem;font-weight:600;color:var(--muted);
+    padding:10px 16px;border-radius:999px;
+    border:1px solid var(--glass-border);background:var(--glass);
+    backdrop-filter:blur(10px);
+  }
+  .flow .step b{color:var(--accent);font-weight:700}
+
+  /* ---------- Forces grid ---------- */
+  .forces-grid{
+    display:grid;gap:18px;margin-top:48px;
+    grid-template-columns:repeat(auto-fit,minmax(248px,1fr));
+  }
+  .glass{
+    background:var(--glass);
+    border:1px solid var(--glass-border);
+    border-radius:18px;
+    backdrop-filter:blur(14px);
+    -webkit-backdrop-filter:blur(14px);
+    padding:26px 24px;
+    transition:.35s transform,.35s border-color,.35s box-shadow;
+    position:relative;overflow:hidden;
+  }
+  .glass::before{
+    content:"";position:absolute;inset:0;border-radius:inherit;
+    background:radial-gradient(120% 80% at 0% 0%, rgba(55,138,221,.12), transparent 55%);
+    opacity:0;transition:.35s;
+  }
+  .glass:hover{transform:translateY(-6px);border-color:var(--accent);box-shadow:0 20px 50px -22px var(--accent-glow)}
+  .glass:hover::before{opacity:1}
+  .force .tag{
+    font-size:.72rem;font-weight:600;letter-spacing:.16em;text-transform:uppercase;
+    color:var(--muted-dim);margin-bottom:12px;display:block;
+  }
+  .force h3{margin-bottom:8px}
+  .force h3 .name{color:var(--accent)}
+  .force p{color:var(--muted);font-size:.96rem}
+
+  /* ---------- India section ---------- */
+  .india{text-align:center}
+  .india .wrap{max-width:820px}
+  .india .lead{margin:0 auto 34px}
+  .langs{display:flex;flex-wrap:wrap;gap:12px;justify-content:center}
+  .lang-chip{
+    font-family:'Syne',sans-serif;font-weight:700;font-size:1.05rem;
+    padding:12px 22px;border-radius:999px;
+    border:1px solid var(--glass-border);background:var(--glass);
+    backdrop-filter:blur(10px);transition:.3s;
+  }
+  .lang-chip:hover{border-color:var(--accent);transform:translateY(-3px);box-shadow:0 0 30px -10px var(--accent-glow)}
+
+  /* ---------- Closing ---------- */
+  .closing{text-align:center}
+  .closing .wrap{max-width:720px}
+  .closing .waitlist-form,.closing .success{margin:32px auto 0}
+  .closing .waitlist-form{justify-content:center}
+
+  /* ---------- Footer ---------- */
+  footer{
+    padding:48px 0 60px;text-align:center;color:var(--muted-dim);font-size:.85rem;
+    border-top:1px solid rgba(255,255,255,.06);
+  }
+  footer .logo{justify-content:center;font-size:1rem;margin-bottom:14px;color:var(--muted)}
+  footer .logo .dot{width:8px;height:8px}
+
+  /* ---------- Reveal animations ---------- */
+  .reveal{opacity:0;transform:translateY(28px);transition:opacity .9s cubic-bezier(.2,.8,.2,1),transform .9s cubic-bezier(.2,.8,.2,1)}
+  .reveal.visible{opacity:1;transform:none}
+  .stagger>*{opacity:0;transform:translateY(26px);transition:opacity .8s cubic-bezier(.2,.8,.2,1),transform .8s cubic-bezier(.2,.8,.2,1)}
+  .stagger.visible>*{opacity:1;transform:none}
+  .stagger.visible>*:nth-child(1){transition-delay:.05s}
+  .stagger.visible>*:nth-child(2){transition-delay:.15s}
+  .stagger.visible>*:nth-child(3){transition-delay:.25s}
+  .stagger.visible>*:nth-child(4){transition-delay:.35s}
+  .stagger.visible>*:nth-child(5){transition-delay:.45s}
+  .stagger.visible>*:nth-child(6){transition-delay:.55s}
+
+  @media (prefers-reduced-motion: reduce){
+    html{scroll-behavior:auto}
+    .reveal,.stagger>*{transition:none;opacity:1;transform:none}
+    .logo .dot{animation:none}
+  }
+
+  @media (max-width:640px){
+    section{padding:90px 0}
+    header{padding:16px 20px}
+    .wrap{padding:0 20px}
+    .waitlist-form .btn{flex:1}
+  }
+</style>
+</head>
+<body>
+
+<canvas id="swarm" aria-hidden="true"></canvas>
+<div class="veil" aria-hidden="true"></div>
+
+<header>
+  <div class="logo"><span class="dot"></span>ClawMind</div>
+  <a class="nav-cta" href="#join">Join the waitlist</a>
+</header>
+
+<main>
+
+  <!-- 1. HERO -->
+  <section class="hero">
+    <div class="wrap stagger" data-reveal>
+      <div class="eyebrow">The neural swarm for real work</div>
+      <h1>One goal in.<br><span class="accent">Finished work</span> out.</h1>
+      <p class="lead">ClawMind commands a swarm of AI agents that finish real work while you sleep. Speak a goal — wake up to it done.</p>
+      <form class="waitlist-form" novalidate>
+        <input type="email" name="email" placeholder="you@email.com" autocomplete="email" required aria-label="Email address" />
+        <button class="btn" type="submit">Join the waitlist</button>
+      </form>
+      <div class="success" role="status">
+        <span class="check">✓</span><span>You're on the list. We'll wake you when the swarm is ready.</span>
+      </div>
+      <p class="form-note">No spam. Just the moment ClawMind opens its gates.</p>
+    </div>
+  </section>
+
+  <!-- 2. SUPERHUMAN -->
+  <section class="superhuman">
+    <div class="wrap reveal" data-reveal>
+      <div class="eyebrow">The flagship · SUPERHUMAN</div>
+      <h2>Give one goal.<br>Get finished work.</h2>
+      <p class="lead">You speak a single goal. The swarm researches, builds, writes, tests, and hands back finished work — plus a morning briefing of everything it did while you slept. No prompts to babysit. No tabs to juggle. Just outcomes on your desk by sunrise.</p>
+      <div class="flow">
+        <span class="step"><b>1</b> &nbsp;Speak a goal</span>
+        <span class="step"><b>2</b> &nbsp;Swarm researches</span>
+        <span class="step"><b>3</b> &nbsp;Builds &amp; writes</span>
+        <span class="step"><b>4</b> &nbsp;Tests &amp; refines</span>
+        <span class="step"><b>5</b> &nbsp;Morning briefing</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- 3. THE FORCES -->
+  <section class="forces">
+    <div class="wrap">
+      <div class="reveal" data-reveal>
+        <div class="eyebrow">The Forces</div>
+        <h2>Eight minds. One swarm.</h2>
+        <p class="lead">Specialised agents, summoned by SUPERHUMAN, each a master of its craft.</p>
+      </div>
+      <div class="forces-grid stagger" data-reveal>
+        <div class="glass force">
+          <span class="tag">Orchestrator</span>
+          <h3><span class="name">SUPERHUMAN</span></h3>
+          <p>The conductor. One goal in, finished work out — it commands every other force.</p>
+        </div>
+        <div class="glass force">
+          <span class="tag">Games</span>
+          <h3><span class="name">EMBER</span></h3>
+          <p>Conjures playable worlds and game experiences from a single spark of an idea.</p>
+        </div>
+        <div class="glass force">
+          <span class="tag">Film</span>
+          <h3><span class="name">LUMEN</span></h3>
+          <p>Directs cinematic video and motion — storyboards to final cut, from a prompt.</p>
+        </div>
+        <div class="glass force">
+          <span class="tag">Automation</span>
+          <h3><span class="name">RELAY</span></h3>
+          <p>Wires up your tools and runs the busywork on autopilot, around the clock.</p>
+        </div>
+        <div class="glass force">
+          <span class="tag">Business</span>
+          <h3><span class="name">FORGE</span></h3>
+          <p>Builds decks, plans, and operations that actually move revenue forward.</p>
+        </div>
+        <div class="glass force">
+          <span class="tag">Creator Studio</span>
+          <h3><span class="name">ECHO</span></h3>
+          <p>Scripts, edits, and ships content across every channel you care about.</p>
+        </div>
+        <div class="glass force">
+          <span class="tag">Learning</span>
+          <h3><span class="name">SAGE</span></h3>
+          <p>Your personal tutor — teaches anything, at your pace, in your language.</p>
+        </div>
+        <div class="glass force">
+          <span class="tag">Apps &amp; Websites</span>
+          <h3><span class="name">BEAM</span></h3>
+          <p>Designs and deploys apps and sites end to end — idea to live URL.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 4. BUILT IN INDIA -->
+  <section class="india">
+    <div class="wrap reveal" data-reveal>
+      <div class="eyebrow">Built in India, for the world</div>
+      <h2>Speak your goal<br>in any language.</h2>
+      <p class="lead">ClawMind listens in your mother tongue. Telugu, Hindi, English — and beyond. AI that serves everyone, not just the tech elite.</p>
+      <div class="langs">
+        <span class="lang-chip">తెలుగు</span>
+        <span class="lang-chip">हिन्दी</span>
+        <span class="lang-chip">English</span>
+        <span class="lang-chip">தமிழ்</span>
+        <span class="lang-chip">বাংলা</span>
+        <span class="lang-chip">+ many more</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- 5. CLOSING CTA -->
+  <section class="closing" id="join">
+    <div class="wrap reveal" data-reveal>
+      <div class="eyebrow">The gates are opening</div>
+      <h2>Wake up to it done.</h2>
+      <p class="lead">Join the waitlist and be among the first to command the swarm.</p>
+      <form class="waitlist-form" novalidate>
+        <input type="email" name="email" placeholder="you@email.com" autocomplete="email" required aria-label="Email address" />
+        <button class="btn" type="submit">Join the waitlist</button>
+      </form>
+      <div class="success" role="status">
+        <span class="check">✓</span><span>You're on the list. We'll wake you when the swarm is ready.</span>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  <div class="logo"><span class="dot"></span>ClawMind</div>
+  <div>One goal in. Finished work out. · Built in India, for the world.</div>
+</footer>
+
+<!-- Three.js from CDN -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+/* =========================================================
+   WAITLIST
+   Stores emails in localStorage as a placeholder.
+   TODO: Wire to Firebase / database here.
+   Replace storeEmail() body with a call to your backend,
+   e.g. addDoc(collection(db, "waitlist"), { email, ts: Date.now() }).
+   ========================================================= */
+function storeEmail(email){
+  try{
+    const key = 'clawmind_waitlist';
+    const list = JSON.parse(localStorage.getItem(key) || '[]');
+    if(!list.includes(email)){
+      list.push(email);
+      localStorage.setItem(key, JSON.stringify(list));
+    }
+  }catch(e){ /* storage may be unavailable */ }
+  console.log('[ClawMind waitlist] new signup:', email);
+  // TODO: send `email` to Firebase/database here.
+}
+
+document.querySelectorAll('.waitlist-form').forEach(function(form){
+  form.addEventListener('submit', function(e){
+    e.preventDefault();
+    const input = form.querySelector('input[type="email"]');
+    const email = (input.value || '').trim();
+    const valid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+    if(!valid){
+      input.focus();
+      input.style.borderColor = '#ff5d6c';
+      input.style.boxShadow = '0 0 0 3px rgba(255,93,108,.25)';
+      return;
+    }
+    storeEmail(email);
+    const success = form.parentElement.querySelector('.success');
+    form.style.display = 'none';
+    if(success) success.classList.add('show');
+  });
+  // clear the error styling once the user starts fixing it
+  const inp = form.querySelector('input[type="email"]');
+  inp.addEventListener('input', function(){ inp.style.borderColor=''; inp.style.boxShadow=''; });
+});
+
+/* =========================================================
+   SCROLL REVEAL
+   ========================================================= */
+(function(){
+  const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const targets = document.querySelectorAll('[data-reveal]');
+  if(reduce || !('IntersectionObserver' in window)){
+    targets.forEach(t=>t.classList.add('visible'));
+    return;
+  }
+  const io = new IntersectionObserver(function(entries){
+    entries.forEach(function(en){
+      if(en.isIntersecting){ en.target.classList.add('visible'); io.unobserve(en.target); }
+    });
+  },{ threshold:.16 });
+  targets.forEach(t=>io.observe(t));
+})();
+
+/* =========================================================
+   NEURAL SWARM  (Three.js)
+   ========================================================= */
+(function(){
+  const canvas = document.getElementById('swarm');
+  const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if(typeof THREE === 'undefined'){ canvas.style.display='none'; return; }
+
+  let renderer, scene, camera, bgPoints, bgGroup, nodeGroup, lineSeg;
+  let width = window.innerWidth, height = window.innerHeight;
+
+  // brand accent in normalized rgb
+  const ACC = { r:55/255, g:138/255, b:221/255 };
+
+  // --- node (constellation) config ---
+  const NODE_COUNT = 150;
+  const NODE_BOUNDS = { x:560, y:340, z:240 };
+  const MAX_DIST = 165;
+  const MAX_DIST_SQ = MAX_DIST*MAX_DIST;
+  const nodes = [];
+
+  // mouse + scroll state
+  let mouseX = 0, mouseY = 0, targetX = 0, targetY = 0;
+  let scrollProgress = 0;
+  const BASE_Z = 470, TRAVEL_Z = 720;
+
+  function glowTexture(){
+    const c = document.createElement('canvas');
+    c.width = c.height = 64;
+    const ctx = c.getContext('2d');
+    const g = ctx.createRadialGradient(32,32,0,32,32,32);
+    g.addColorStop(0,'rgba(255,255,255,1)');
+    g.addColorStop(0.25,'rgba(180,215,255,0.9)');
+    g.addColorStop(0.55,'rgba(55,138,221,0.35)');
+    g.addColorStop(1,'rgba(55,138,221,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0,0,64,64);
+    const tex = new THREE.Texture(c);
+    tex.needsUpdate = true;
+    return tex;
+  }
+
+  function init(){
+    try{
+      renderer = new THREE.WebGLRenderer({ canvas:canvas, antialias:true, alpha:true });
+    }catch(e){ canvas.style.display='none'; return false; }
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setSize(width, height);
+
+    scene = new THREE.Scene();
+    scene.fog = new THREE.FogExp2(0x000000, 0.0011);
+
+    camera = new THREE.PerspectiveCamera(70, width/height, 1, 3000);
+    camera.position.set(0,0,BASE_Z);
+
+    const tex = glowTexture();
+
+    // ---- ambient background particles (thousands) ----
+    bgGroup = new THREE.Group();
+    const COUNT = 2600;
+    const positions = new Float32Array(COUNT*3);
+    for(let i=0;i<COUNT;i++){
+      positions[i*3]   = (Math.random()-0.5)*1700;
+      positions[i*3+1] = (Math.random()-0.5)*1100;
+      positions[i*3+2] = (Math.random()-0.5)*1400 - 200;
+    }
+    const bgGeo = new THREE.BufferGeometry();
+    bgGeo.setAttribute('position', new THREE.BufferAttribute(positions,3));
+    const bgMat = new THREE.PointsMaterial({
+      size:5.5, map:tex, color:0x378ADD,
+      transparent:true, opacity:.85, depthWrite:false,
+      blending:THREE.AdditiveBlending, sizeAttenuation:true
+    });
+    bgPoints = new THREE.Points(bgGeo, bgMat);
+    bgGroup.add(bgPoints);
+    scene.add(bgGroup);
+
+    // ---- constellation nodes + lines ----
+    nodeGroup = new THREE.Group();
+    const nodePos = new Float32Array(NODE_COUNT*3);
+    for(let i=0;i<NODE_COUNT;i++){
+      const n = {
+        x:(Math.random()-0.5)*2*NODE_BOUNDS.x,
+        y:(Math.random()-0.5)*2*NODE_BOUNDS.y,
+        z:(Math.random()-0.5)*2*NODE_BOUNDS.z,
+        vx:(Math.random()-0.5)*0.22,
+        vy:(Math.random()-0.5)*0.22,
+        vz:(Math.random()-0.5)*0.22
+      };
+      nodes.push(n);
+      nodePos[i*3]=n.x; nodePos[i*3+1]=n.y; nodePos[i*3+2]=n.z;
+    }
+    const nodeGeo = new THREE.BufferGeometry();
+    nodeGeo.setAttribute('position', new THREE.BufferAttribute(nodePos,3));
+    const nodeMat = new THREE.PointsMaterial({
+      size:11, map:tex, color:0xbfe0ff,
+      transparent:true, opacity:.95, depthWrite:false,
+      blending:THREE.AdditiveBlending, sizeAttenuation:true
+    });
+    nodeGroup.add(new THREE.Points(nodeGeo, nodeMat));
+
+    // line segments (rebuilt each frame)
+    const maxSeg = NODE_COUNT*NODE_COUNT;
+    const linePositions = new Float32Array(maxSeg*2*3);
+    const lineColors = new Float32Array(maxSeg*2*3);
+    const lineGeo = new THREE.BufferGeometry();
+    lineGeo.setAttribute('position', new THREE.BufferAttribute(linePositions,3));
+    lineGeo.setAttribute('color', new THREE.BufferAttribute(lineColors,3));
+    const lineMat = new THREE.LineBasicMaterial({
+      vertexColors:true, transparent:true, opacity:.6,
+      blending:THREE.AdditiveBlending, depthWrite:false
+    });
+    lineSeg = new THREE.LineSegments(lineGeo, lineMat);
+    lineSeg.geometry.setDrawRange(0,0);
+    nodeGroup.add(lineSeg);
+
+    scene.add(nodeGroup);
+    return true;
+  }
+
+  function updateNodes(){
+    const nodeAttr = nodeGroup.children[0].geometry.attributes.position;
+    const np = nodeAttr.array;
+    for(let i=0;i<NODE_COUNT;i++){
+      const n = nodes[i];
+      n.x += n.vx; n.y += n.vy; n.z += n.vz;
+      if(n.x> NODE_BOUNDS.x || n.x<-NODE_BOUNDS.x) n.vx*=-1;
+      if(n.y> NODE_BOUNDS.y || n.y<-NODE_BOUNDS.y) n.vy*=-1;
+      if(n.z> NODE_BOUNDS.z || n.z<-NODE_BOUNDS.z) n.vz*=-1;
+      np[i*3]=n.x; np[i*3+1]=n.y; np[i*3+2]=n.z;
+    }
+    nodeAttr.needsUpdate = true;
+  }
+
+  function updateLines(pulse){
+    const posAttr = lineSeg.geometry.attributes.position;
+    const colAttr = lineSeg.geometry.attributes.color;
+    const lp = posAttr.array, lc = colAttr.array;
+    let v = 0;
+    for(let i=0;i<NODE_COUNT;i++){
+      const a = nodes[i];
+      for(let j=i+1;j<NODE_COUNT;j++){
+        const b = nodes[j];
+        const dx=a.x-b.x, dy=a.y-b.y, dz=a.z-b.z;
+        const d2 = dx*dx+dy*dy+dz*dz;
+        if(d2 < MAX_DIST_SQ){
+          const alpha = (1 - Math.sqrt(d2)/MAX_DIST) * pulse;
+          const r=ACC.r*alpha, g=ACC.g*alpha, bl=ACC.b*alpha;
+          // endpoint a
+          lp[v*3]=a.x; lp[v*3+1]=a.y; lp[v*3+2]=a.z;
+          lc[v*3]=r; lc[v*3+1]=g; lc[v*3+2]=bl; v++;
+          // endpoint b
+          lp[v*3]=b.x; lp[v*3+1]=b.y; lp[v*3+2]=b.z;
+          lc[v*3]=r; lc[v*3+1]=g; lc[v*3+2]=bl; v++;
+        }
+      }
+    }
+    lineSeg.geometry.setDrawRange(0, v);
+    posAttr.needsUpdate = true;
+    colAttr.needsUpdate = true;
+  }
+
+  const clock = (typeof THREE.Clock !== 'undefined') ? new THREE.Clock() : null;
+
+  function render(){
+    const t = clock ? clock.getElapsedTime() : performance.now()*0.001;
+    const pulse = 0.72 + 0.28*Math.sin(t*0.8);   // breathing
+
+    // mouse parallax (eased)
+    targetX += (mouseX - targetX)*0.05;
+    targetY += (mouseY - targetY)*0.05;
+    camera.position.x = targetX*70;
+    camera.position.y = -targetY*45;
+    // scroll: travel deeper through the field
+    camera.position.z = BASE_Z - scrollProgress*TRAVEL_Z;
+    camera.lookAt(0,0,0);
+
+    bgGroup.rotation.y = t*0.012;
+    bgGroup.rotation.x = Math.sin(t*0.05)*0.04;
+    bgPoints.material.opacity = 0.55 + 0.35*pulse;
+
+    nodeGroup.rotation.y = t*0.02;
+    nodeGroup.children[0].material.opacity = 0.7 + 0.3*pulse;
+
+    updateNodes();
+    updateLines(pulse);
+
+    renderer.render(scene, camera);
+  }
+
+  function loop(){ render(); requestAnimationFrame(loop); }
+
+  function onResize(){
+    width = window.innerWidth; height = window.innerHeight;
+    camera.aspect = width/height;
+    camera.updateProjectionMatrix();
+    renderer.setSize(width, height);
+  }
+
+  // ---- boot ----
+  if(!init()) return;
+
+  if(reduce){
+    // Respect reduced motion: render a single static frame, no loop/interaction.
+    updateLines(1);
+    renderer.render(scene, camera);
+  }else{
+    window.addEventListener('mousemove', function(e){
+      mouseX = (e.clientX/width)*2 - 1;
+      mouseY = (e.clientY/height)*2 - 1;
+    }, { passive:true });
+    window.addEventListener('scroll', function(){
+      const max = document.documentElement.scrollHeight - window.innerHeight;
+      scrollProgress = max>0 ? Math.min(window.scrollY/max,1) : 0;
+    }, { passive:true });
+    window.addEventListener('resize', onResize);
+    loop();
+  }
+})();
+</script>
+</body>
+</html>

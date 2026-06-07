@@ -423,33 +423,35 @@
   <div>One goal in. Finished work out. · Built in India, for the world.</div>
 </footer>
 
+<!-- Supabase JS from CDN -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <!-- Three.js from CDN -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
 /* =========================================================
-   WAITLIST
-   Stores emails in localStorage as a placeholder.
-   TODO: Wire to Firebase / database here.
-   Replace storeEmail() body with a call to your backend,
-   e.g. addDoc(collection(db, "waitlist"), { email, ts: Date.now() }).
+   SUPABASE WAITLIST
+   Emails are saved to the `waitlist` table in Supabase.
    ========================================================= */
-function storeEmail(email){
-  try{
-    const key = 'clawmind_waitlist';
-    const list = JSON.parse(localStorage.getItem(key) || '[]');
-    if(!list.includes(email)){
-      list.push(email);
-      localStorage.setItem(key, JSON.stringify(list));
-    }
-  }catch(e){ /* storage may be unavailable */ }
-  console.log('[ClawMind waitlist] new signup:', email);
-  // TODO: send `email` to Firebase/database here.
+const _supabase = supabase.createClient(
+  'https://wimuksjoaaozbpczqgls.supabase.co',
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndpbXVrc2pvYWFvemJwY3pxZ2xzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA4MDE5MTcsImV4cCI6MjA5NjM3NzkxN30.TTh9q53Zug14Txr7433-V8TLU83xCH7-G04ZlkhYnuA'
+);
+
+async function storeEmail(email){
+  const { error } = await _supabase.from('waitlist').insert({ email });
+  if(error && error.code !== '23505') {
+    // 23505 = unique violation (already signed up) — treat as success
+    console.error('[ClawMind waitlist] error:', error.message);
+    throw error;
+  }
+  console.log('[ClawMind waitlist] saved:', email);
 }
 
 document.querySelectorAll('.waitlist-form').forEach(function(form){
-  form.addEventListener('submit', function(e){
+  form.addEventListener('submit', async function(e){
     e.preventDefault();
     const input = form.querySelector('input[type="email"]');
+    const btn   = form.querySelector('.btn');
     const email = (input.value || '').trim();
     const valid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
     if(!valid){
@@ -458,12 +460,21 @@ document.querySelectorAll('.waitlist-form').forEach(function(form){
       input.style.boxShadow = '0 0 0 3px rgba(255,93,108,.25)';
       return;
     }
-    storeEmail(email);
-    const success = form.parentElement.querySelector('.success');
-    form.style.display = 'none';
-    if(success) success.classList.add('show');
+    // Loading state
+    btn.textContent = 'Joining…';
+    btn.disabled = true;
+    try{
+      await storeEmail(email);
+      const success = form.parentElement.querySelector('.success');
+      form.style.display = 'none';
+      if(success) success.classList.add('show');
+    }catch(err){
+      btn.textContent = 'Join the waitlist';
+      btn.disabled = false;
+      input.style.borderColor = '#ff5d6c';
+      input.style.boxShadow = '0 0 0 3px rgba(255,93,108,.25)';
+    }
   });
-  // clear the error styling once the user starts fixing it
   const inp = form.querySelector('input[type="email"]');
   inp.addEventListener('input', function(){ inp.style.borderColor=''; inp.style.boxShadow=''; });
 });

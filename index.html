@@ -47,6 +47,16 @@
     z-index:-2;
     display:block;
   }
+  /* Static neural-swarm image: instant poster while WebGL loads, and the
+     fallback for reduced-motion / no-WebGL devices. Sits behind the canvas. */
+  .swarm-fallback{
+    position:fixed;
+    inset:0;
+    z-index:-3;
+    background:#000 url('swarm-fallback.jpg') center center / cover no-repeat;
+    transition:opacity .9s ease;
+  }
+  .swarm-fallback.hidden{opacity:0}
   /* dark vignette + depth so text stays legible over the swarm */
   .veil{
     position:fixed;
@@ -276,6 +286,7 @@
 </head>
 <body>
 
+<div class="swarm-fallback" aria-hidden="true"></div>
 <canvas id="swarm" aria-hidden="true"></canvas>
 <div class="veil" aria-hidden="true"></div>
 
@@ -690,12 +701,13 @@ document.querySelectorAll('.waitlist-form').forEach(function(form){
   }
 
   // ---- boot ----
+  const fallbackEl = document.querySelector('.swarm-fallback');
+  // If init fails or THREE is missing, the static fallback image stays visible.
   if(!init()) return;
 
   if(reduce){
-    // Respect reduced motion: render a single static frame, no loop/interaction.
-    updateLines(1);
-    renderer.render(scene, camera);
+    // Respect reduced motion: no animation — show the static swarm image, hide canvas.
+    canvas.style.display = 'none';
   }else{
     window.addEventListener('mousemove', function(e){
       mouseX = (e.clientX/width)*2 - 1;
@@ -711,6 +723,8 @@ document.querySelectorAll('.waitlist-form').forEach(function(form){
       if(document.hidden) stop(); else start();
     });
     start();
+    // Fade out the static poster once the live swarm is running.
+    if(fallbackEl) fallbackEl.classList.add('hidden');
   }
 })();
 </script>

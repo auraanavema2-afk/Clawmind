@@ -424,7 +424,7 @@
 </footer>
 
 <!-- Supabase JS from CDN -->
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!-- Three.js from CDN -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
@@ -432,12 +432,15 @@
    SUPABASE WAITLIST
    Emails are saved to the `waitlist` table in Supabase.
    ========================================================= */
-const _supabase = supabase.createClient(
-  'https://wimuksjoaaozbpczqgls.supabase.co',
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndpbXVrc2pvYWFvemJwY3pxZ2xzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA4MDE5MTcsImV4cCI6MjA5NjM3NzkxN30.TTh9q53Zug14Txr7433-V8TLU83xCH7-G04ZlkhYnuA'
-);
+const _supabase = (typeof supabase !== 'undefined')
+  ? supabase.createClient(
+      'https://wimuksjoaaozbpczqgls.supabase.co',
+      'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndpbXVrc2pvYWFvemJwY3pxZ2xzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA4MDE5MTcsImV4cCI6MjA5NjM3NzkxN30.TTh9q53Zug14Txr7433-V8TLU83xCH7-G04ZlkhYnuA'
+    )
+  : null;
 
 async function storeEmail(email){
+  if(!_supabase) throw new Error('Supabase client not loaded');
   const { error } = await _supabase.from('waitlist').insert({ email });
   if(error && error.code !== '23505') {
     // 23505 = unique violation (already signed up) — treat as success

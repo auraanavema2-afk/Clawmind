@@ -1,22 +1,24 @@
-import Anthropic from "@anthropic-ai/sdk";
+import { GoogleGenAI } from "@google/genai";
 import { createClient } from "@/lib/supabase/server";
 
-// Agent runs can take a while (thinking + web search). Give the function room.
+// Agent runs can take a while (reasoning + web search). Give the function room.
 export const maxDuration = 60;
 
-const MODEL = "claude-opus-4-8";
+// Gemini 2.5 Flash is fast, capable, and available on Google's free tier.
+// Swapping providers later is a one-line model change.
+const MODEL = "gemini-2.5-flash";
 
 const SYSTEM_PROMPT = `You are ClawMind — an autonomous AI agent that finishes real work.
 
 The user hands you a single goal. Your job is to deliver the FINISHED result, not a plan or a list of steps you "would" take. Do the work and present the completed deliverable.
 
 Guidelines:
-- If current, real-world, or factual information matters, use the web_search tool to look it up rather than guessing.
+- If current, real-world, or factual information matters, use Google Search to look it up rather than guessing.
 - Produce a polished, self-contained answer the user can use immediately (an email, a plan, code, research findings, a draft, etc.).
 - Use clear formatting (headings, lists) when it helps readability.
 - Be thorough but do not pad. Quality over length.`;
 
-const anthropic = new Anthropic();
+const ai = new GoogleGenAI({ apiKey: process.env.GOOGLE_API_KEY });
 
 export async function POST(request: Request) {
   const supabase = await createClient();
@@ -61,39 +63,17 @@ export async function POST(request: Request) {
   }
 
   try {
-    const messages: Anthropic.MessageParam[] = [
-      { role: "user", content: prompt },
-    ];
-
-    let response = await anthropic.messages.create({
+    const response = await ai.models.generateContent({
       model: MODEL,
-      max_tokens: 16000,
-      thinking: { type: "adaptive" },
-      system: SYSTEM_PROMPT,
-      tools: [{ type: "web_search_20260209", name: "web_search" }],
-      messages,
+      contents: prompt,
+      config: {
+        systemInstruction: SYSTEM_PROMPT,
+        // Google Search grounding lets the agent pull in current, real info.
+        tools: [{ googleSearch: {} }],
+      },
     });
 
-    // Server-side tools (web search) can pause the turn after the internal
-    // loop hits its iteration cap. Re-send to let the server resume.
-    let guard = 0;
-    while (response.stop_reason === "pause_turn" && guard++ < 8) {
-      messages.push({ role: "assistant", content: response.content });
-      response = await anthropic.messages.create({
-        model: MODEL,
-        max_tokens: 16000,
-        thinking: { type: "adaptive" },
-        system: SYSTEM_PROMPT,
-        tools: [{ type: "web_search_20260209", name: "web_search" }],
-        messages,
-      });
-    }
-
-    const resultText = response.content
-      .filter((b): b is Anthropic.TextBlock => b.type === "text")
-      .map((b) => b.text)
-      .join("\n\n")
-      .trim();
+    const resultText = (response.text ?? "").trim();
 
     const { data: updated } = await supabase
       .from("tasks")

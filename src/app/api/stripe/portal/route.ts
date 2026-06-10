@@ -1,9 +1,8 @@
-import Stripe from "stripe";
 import { createClient } from "@/lib/supabase/server";
-
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
+import { getStripe } from "@/lib/stripe";
 
 export async function POST(request: Request) {
+  const stripe = getStripe();
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 

@@ -130,25 +130,10 @@
   .hero h1{max-width:16ch}
   .hero .lead{margin:26px 0 38px}
 
-  /* ---------- Waitlist form ---------- */
-  .waitlist-form{
-    display:flex;gap:12px;flex-wrap:wrap;max-width:520px;
-  }
-  .waitlist-form input[type="email"]{
-    flex:1;min-width:220px;
-    background:var(--glass);
-    border:1px solid var(--glass-border);
-    color:#fff;font-family:inherit;font-size:1rem;
-    padding:15px 18px;border-radius:14px;
-    backdrop-filter:blur(10px);
-    transition:.25s;
-  }
-  .waitlist-form input::placeholder{color:var(--muted-dim)}
-  .waitlist-form input:focus{
-    outline:none;border-color:var(--accent);
-    box-shadow:0 0 0 3px var(--accent-soft),0 0 28px rgba(55,138,221,.25);
-  }
+  /* ---------- CTA buttons ---------- */
+  .cta-row{display:flex;gap:14px;flex-wrap:wrap;align-items:center}
   .btn{
+    display:inline-block;text-decoration:none;
     cursor:pointer;border:none;font-family:'Syne',sans-serif;font-weight:700;
     font-size:1rem;letter-spacing:.01em;color:#001226;
     padding:15px 26px;border-radius:14px;
@@ -160,20 +145,15 @@
   .btn:hover{transform:translateY(-2px);box-shadow:0 10px 40px -6px var(--accent-glow);filter:brightness(1.08)}
   .btn:active{transform:translateY(0)}
   .btn:focus-visible{outline:none;box-shadow:0 0 0 3px #000,0 0 0 6px var(--accent)}
+  .btn-ghost{
+    display:inline-block;text-decoration:none;
+    font-family:'Syne',sans-serif;font-weight:700;font-size:1rem;
+    color:#fff;padding:15px 24px;border-radius:14px;
+    background:var(--glass);border:1px solid var(--glass-border);
+    backdrop-filter:blur(10px);transition:.25s;white-space:nowrap;
+  }
+  .btn-ghost:hover{border-color:var(--accent);color:var(--accent)}
   .form-note{font-size:.85rem;color:var(--muted-dim);margin-top:14px}
-  .success{
-    display:none;align-items:center;gap:14px;max-width:520px;
-    padding:18px 22px;border-radius:16px;
-    background:var(--glass);border:1px solid var(--accent);
-    backdrop-filter:blur(12px);
-    box-shadow:0 0 36px -8px var(--accent-glow);
-    font-weight:600;
-  }
-  .success.show{display:flex}
-  .success .check{
-    flex:0 0 auto;width:34px;height:34px;border-radius:50%;
-    display:grid;place-items:center;background:var(--accent);color:#001226;font-weight:800;
-  }
 
   /* ---------- Superhuman feature ---------- */
   .superhuman .lead{margin-bottom:30px}
@@ -278,8 +258,7 @@
   /* ---------- Closing ---------- */
   .closing{text-align:center}
   .closing .wrap{max-width:720px}
-  .closing .waitlist-form,.closing .success{margin:32px auto 0}
-  .closing .waitlist-form{justify-content:center}
+  .closing .cta-row{margin:32px auto 0;justify-content:center}
 
   /* ---------- Footer ---------- */
   footer{
@@ -324,7 +303,7 @@
     section{padding:90px 0}
     header{padding:16px 20px}
     .wrap{padding:0 20px}
-    .waitlist-form .btn{flex:1}
+    .cta-row .btn,.cta-row .btn-ghost{flex:1;text-align:center}
   }
 </style>
 </head>
@@ -347,14 +326,11 @@
       <div class="eyebrow">The neural swarm for real work</div>
       <h1>One goal in.<br><span class="accent">Finished work</span> out.</h1>
       <p class="lead">ClawMind commands a swarm of AI agents that finish real work while you sleep. Speak a goal — wake up to it done.</p>
-      <form class="waitlist-form" novalidate>
-        <input type="email" name="email" placeholder="you@email.com" autocomplete="email" required aria-label="Email address" />
-        <button class="btn" type="submit">Join the waitlist</button>
-      </form>
-      <div class="success" role="status">
-        <span class="check">✓</span><span>You're on the list. We'll wake you when the swarm is ready.</span>
+      <div class="cta-row">
+        <a class="btn" href="/app">Launch app →</a>
+        <a class="btn-ghost" href="#pricing">See pricing</a>
       </div>
-      <p class="form-note">No spam. Just the moment ClawMind opens its gates.</p>
+      <p class="form-note">Free to start · No card required.</p>
     </div>
   </section>
 
@@ -543,15 +519,12 @@
   <!-- 5. CLOSING CTA -->
   <section class="closing" id="join">
     <div class="wrap reveal" data-reveal>
-      <div class="eyebrow">The gates are opening</div>
+      <div class="eyebrow">The gates are open</div>
       <h2>Wake up to it done.</h2>
-      <p class="lead">Join the waitlist and be among the first to command the swarm.</p>
-      <form class="waitlist-form" novalidate>
-        <input type="email" name="email" placeholder="you@email.com" autocomplete="email" required aria-label="Email address" />
-        <button class="btn" type="submit">Join the waitlist</button>
-      </form>
-      <div class="success" role="status">
-        <span class="check">✓</span><span>You're on the list. We'll wake you when the swarm is ready.</span>
+      <p class="lead">Start free in seconds. Command the swarm and get finished work.</p>
+      <div class="cta-row" style="justify-content:center">
+        <a class="btn" href="/app">Launch app →</a>
+        <a class="btn-ghost" href="#pricing">See pricing</a>
       </div>
     </div>
   </section>
@@ -563,64 +536,9 @@
   <div>One goal in. Finished work out. · Built in India, for the world.</div>
 </footer>
 
-<!-- Supabase JS from CDN -->
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!-- Three.js from CDN -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
-/* =========================================================
-   SUPABASE WAITLIST
-   Emails are saved to the `waitlist` table in Supabase.
-   ========================================================= */
-const _supabase = (typeof supabase !== 'undefined')
-  ? supabase.createClient(
-      'https://wimuksjoaaozbpczqgls.supabase.co',
-      'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndpbXVrc2pvYWFvemJwY3pxZ2xzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA4MDE5MTcsImV4cCI6MjA5NjM3NzkxN30.TTh9q53Zug14Txr7433-V8TLU83xCH7-G04ZlkhYnuA'
-    )
-  : null;
-
-async function storeEmail(email){
-  if(!_supabase) throw new Error('Supabase client not loaded');
-  const { error } = await _supabase.from('waitlist').insert({ email });
-  if(error && error.code !== '23505') {
-    // 23505 = unique violation (already signed up) — treat as success
-    console.error('[ClawMind waitlist] error:', error.message);
-    throw error;
-  }
-  console.log('[ClawMind waitlist] saved:', email);
-}
-
-document.querySelectorAll('.waitlist-form').forEach(function(form){
-  form.addEventListener('submit', async function(e){
-    e.preventDefault();
-    const input = form.querySelector('input[type="email"]');
-    const btn   = form.querySelector('.btn');
-    const email = (input.value || '').trim();
-    const valid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-    if(!valid){
-      input.focus();
-      input.style.borderColor = '#ff5d6c';
-      input.style.boxShadow = '0 0 0 3px rgba(255,93,108,.25)';
-      return;
-    }
-    // Loading state
-    btn.textContent = 'Joining…';
-    btn.disabled = true;
-    try{
-      await storeEmail(email);
-      const success = form.parentElement.querySelector('.success');
-      form.style.display = 'none';
-      if(success) success.classList.add('show');
-    }catch(err){
-      btn.textContent = 'Join the waitlist';
-      btn.disabled = false;
-      input.style.borderColor = '#ff5d6c';
-      input.style.boxShadow = '0 0 0 3px rgba(255,93,108,.25)';
-    }
-  });
-  const inp = form.querySelector('input[type="email"]');
-  inp.addEventListener('input', function(){ inp.style.borderColor=''; inp.style.boxShadow=''; });
-});
 
 /* =========================================================
    SCROLL REVEAL

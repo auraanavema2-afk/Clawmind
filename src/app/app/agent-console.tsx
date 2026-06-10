@@ -32,13 +32,19 @@ export default function AgentConsole({
 }) {
   const router = useRouter();
   const [tasks, setTasks] = useState<Task[]>(initialTasks);
+  const [used, setUsed] = useState(usedThisMonth);
   const [prompt, setPrompt] = useState("");
   const [running, setRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [limitReached, setLimitReached] = useState(false);
   const [upgrading, setUpgrading] = useState(false);
 
-  const atLimit = monthlyLimit !== null && usedThisMonth >= monthlyLimit;
+  const atLimit = monthlyLimit !== null && used >= monthlyLimit;
+  const remaining = monthlyLimit === null ? null : Math.max(0, monthlyLimit - used);
+  const usagePct =
+    monthlyLimit === null ? 0 : Math.min(100, Math.round((used / monthlyLimit) * 100));
+  const doneCount = tasks.filter((t) => t.status === "done").length;
+  const nextPlan = getNextPlan(planId);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -78,9 +84,8 @@ export default function AgentConsole({
       }
 
       if (data?.task) {
-        setTasks((prev) =>
-          prev.map((t) => (t.id === tempId ? (data.task as Task) : t))
-        );
+        setTasks((prev) => prev.map((t) => (t.id === tempId ? (data.task as Task) : t)));
+        setUsed((u) => u + 1);
       } else {
         throw new Error(data?.error ?? "Something went wrong.");
       }
@@ -88,9 +93,7 @@ export default function AgentConsole({
       const message = err instanceof Error ? err.message : "Request failed.";
       setError(message);
       setTasks((prev) =>
-        prev.map((t) =>
-          t.id === tempId ? { ...t, status: "error", error: message } : t
-        )
+        prev.map((t) => (t.id === tempId ? { ...t, status: "error", error: message } : t))
       );
     } finally {
       setRunning(false);
@@ -136,18 +139,21 @@ export default function AgentConsole({
     router.refresh();
   };
 
-  const nextPlan = getNextPlan(planId);
-
   return (
-    <main className="min-h-screen bg-black text-white">
-      <div className="mx-auto flex min-h-screen max-w-3xl flex-col px-5 py-8">
+    <main className="min-h-screen bg-[#05070d] text-white">
+      {/* ambient glow */}
+      <div className="pointer-events-none fixed inset-0 overflow-hidden">
+        <div className="absolute -top-40 left-1/2 h-96 w-[40rem] -translate-x-1/2 rounded-full bg-cyan-500/10 blur-[120px]" />
+      </div>
+
+      <div className="relative mx-auto flex min-h-screen max-w-5xl flex-col px-5 py-7">
         {/* Header */}
         <header className="flex items-center justify-between">
           <div className="flex items-center gap-2 text-lg font-semibold tracking-tight">
             <span className="inline-block h-2.5 w-2.5 rounded-full bg-cyan-400 shadow-[0_0_12px_3px_rgba(34,211,238,0.7)]" />
             ClawMind
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
             <span className="hidden text-sm text-zinc-500 sm:inline">{email}</span>
             {planId !== "spark" && (
               <button
@@ -167,48 +173,74 @@ export default function AgentConsole({
           </div>
         </header>
 
-        {/* Plan badge */}
-        <div className="mt-4 flex items-center gap-3">
-          <span className="rounded-full bg-cyan-500/10 px-3 py-1 text-xs font-medium text-cyan-300 ring-1 ring-cyan-500/20">
-            {planName} plan
-          </span>
-          {monthlyLimit !== null ? (
-            <span className="text-xs text-zinc-500">
-              {usedThisMonth} / {monthlyLimit} tasks this month
-            </span>
-          ) : (
-            <span className="text-xs text-zinc-500">Unlimited tasks</span>
-          )}
+        {/* Greeting */}
+        <div className="mt-8">
+          <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Dashboard</h1>
+          <p className="mt-1 text-sm text-zinc-400">
+            Your swarm, your finished work — all in one place.
+          </p>
         </div>
 
-        {/* Limit banner */}
-        {(atLimit || limitReached) && nextPlan && (
-          <div className="mt-4 rounded-xl border border-amber-500/30 bg-amber-500/10 px-5 py-4">
-            <p className="text-sm font-medium text-amber-300">
-              You&apos;ve used all {monthlyLimit} tasks on the {planName} plan this month.
-            </p>
-            <div className="mt-3">
-              <button
-                onClick={() => upgrade(nextPlan.id)}
-                disabled={upgrading}
-                className="rounded-lg bg-cyan-400 px-4 py-2 text-sm font-semibold text-black transition hover:bg-cyan-300 disabled:opacity-50"
-              >
-                {upgrading ? "Loading…" : `Upgrade to ${nextPlan.name} — $${nextPlan.usd}/mo`}
-              </button>
+        {/* Stat cards */}
+        <section className="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
+          <StatCard label="Current plan" value={planName} accent />
+          <StatCard
+            label="Tasks this month"
+            value={monthlyLimit === null ? `${used}` : `${used} / ${monthlyLimit}`}
+          />
+          <StatCard
+            label="Remaining"
+            value={remaining === null ? "Unlimited" : `${remaining}`}
+          />
+          <StatCard label="Completed" value={`${doneCount}`} />
+        </section>
+
+        {/* Usage bar */}
+        {monthlyLimit !== null && (
+          <section className="mt-4 rounded-2xl border border-white/8 bg-white/[0.03] p-5">
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-zinc-400">Monthly usage</span>
+              <span className="font-medium text-zinc-300">{usagePct}%</span>
             </div>
-          </div>
+            <div className="mt-2 h-2.5 w-full overflow-hidden rounded-full bg-white/8">
+              <div
+                className={`h-full rounded-full transition-all ${
+                  usagePct >= 100
+                    ? "bg-amber-400"
+                    : "bg-gradient-to-r from-cyan-500 to-cyan-300"
+                }`}
+                style={{ width: `${usagePct}%` }}
+              />
+            </div>
+            {nextPlan && (
+              <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+                <p className="text-sm text-zinc-500">
+                  {atLimit
+                    ? "You've hit your monthly limit."
+                    : `Need more? ${nextPlan.name} gives you more tasks.`}
+                </p>
+                <button
+                  onClick={() => upgrade(nextPlan.id)}
+                  disabled={upgrading}
+                  className="rounded-lg bg-cyan-400 px-4 py-2 text-sm font-semibold text-black transition hover:bg-cyan-300 disabled:opacity-50"
+                >
+                  {upgrading ? "Loading…" : `Upgrade to ${nextPlan.name} — $${nextPlan.usd}/mo`}
+                </button>
+              </div>
+            )}
+          </section>
         )}
 
         {/* Composer */}
-        <section className="mt-8">
-          <h1 className="text-2xl font-bold tracking-tight">
+        <section className="mt-8 rounded-2xl border border-white/10 bg-white/[0.03] p-6">
+          <h2 className="text-lg font-semibold tracking-tight">
             What should your swarm finish?
-          </h1>
+          </h2>
           <p className="mt-1 text-sm text-zinc-400">
             Describe a goal. ClawMind researches and delivers the finished work.
           </p>
 
-          <form onSubmit={submit} className="mt-5">
+          <form onSubmit={submit} className="mt-4">
             <textarea
               value={prompt}
               onChange={(e) => setPrompt(e.target.value)}
@@ -223,54 +255,73 @@ export default function AgentConsole({
               }
               rows={4}
               maxLength={4000}
-              className="w-full resize-y rounded-xl border border-white/12 bg-white/5 px-4 py-3 text-[15px] leading-relaxed outline-none transition placeholder:text-zinc-600 focus:border-cyan-400/60 disabled:cursor-not-allowed disabled:opacity-40"
+              className="w-full resize-y rounded-xl border border-white/12 bg-black/30 px-4 py-3 text-[15px] leading-relaxed outline-none transition placeholder:text-zinc-600 focus:border-cyan-400/60 disabled:cursor-not-allowed disabled:opacity-40"
             />
             <div className="mt-3 flex items-center justify-between">
               <span className="text-xs text-zinc-600">⌘/Ctrl + Enter to run</span>
               <button
                 type="submit"
                 disabled={running || !prompt.trim() || atLimit}
-                className="rounded-xl bg-cyan-400 px-5 py-2.5 font-semibold text-black transition hover:bg-cyan-300 disabled:cursor-not-allowed disabled:opacity-50"
+                className="rounded-xl bg-cyan-400 px-6 py-2.5 font-semibold text-black transition hover:bg-cyan-300 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {running ? "Working…" : "Run agent"}
               </button>
             </div>
           </form>
 
-          {error && !limitReached && (
-            <p className="mt-3 text-sm text-red-400">{error}</p>
-          )}
+          {error && !limitReached && <p className="mt-3 text-sm text-red-400">{error}</p>}
         </section>
 
-        {/* Upgrade nudge for Spark users who haven't hit the limit yet */}
-        {planId === "spark" && !atLimit && nextPlan && (
-          <div className="mt-4 flex items-center justify-between rounded-xl border border-white/8 bg-white/[0.02] px-5 py-3">
-            <p className="text-sm text-zinc-500">
-              Free plan · {monthlyLimit! - usedThisMonth} tasks left this month
-            </p>
-            <button
-              onClick={() => upgrade(nextPlan.id)}
-              disabled={upgrading}
-              className="rounded-lg bg-white/8 px-3 py-1.5 text-sm font-medium text-zinc-300 transition hover:bg-white/12 disabled:opacity-50"
-            >
-              Upgrade →
-            </button>
-          </div>
-        )}
-
         {/* History */}
-        <section className="mt-8 space-y-4 pb-12">
-          {tasks.length === 0 && (
-            <p className="text-sm text-zinc-600">
-              No tasks yet. Your finished work will appear here.
-            </p>
-          )}
-          {tasks.map((task) => (
-            <TaskCard key={task.id} task={task} />
-          ))}
+        <section className="mt-8">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-semibold tracking-tight">Your work</h2>
+            <span className="text-xs text-zinc-600">{tasks.length} total</span>
+          </div>
+          <div className="mt-4 space-y-3 pb-12">
+            {tasks.length === 0 && (
+              <div className="rounded-2xl border border-dashed border-white/10 px-5 py-10 text-center">
+                <p className="text-sm text-zinc-600">
+                  No tasks yet. Describe a goal above and your finished work will appear here.
+                </p>
+              </div>
+            )}
+            {tasks.map((task) => (
+              <TaskCard key={task.id} task={task} />
+            ))}
+          </div>
         </section>
       </div>
     </main>
+  );
+}
+
+function StatCard({
+  label,
+  value,
+  accent,
+}: {
+  label: string;
+  value: string;
+  accent?: boolean;
+}) {
+  return (
+    <div
+      className={`rounded-2xl border p-5 ${
+        accent
+          ? "border-cyan-500/30 bg-cyan-500/[0.06]"
+          : "border-white/8 bg-white/[0.03]"
+      }`}
+    >
+      <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">{label}</p>
+      <p
+        className={`mt-2 text-2xl font-bold tracking-tight ${
+          accent ? "text-cyan-300" : "text-white"
+        }`}
+      >
+        {value}
+      </p>
+    </div>
   );
 }
 
@@ -290,12 +341,10 @@ function TaskCard({ task }: { task: Task }) {
     <article className="overflow-hidden rounded-2xl border border-white/10 bg-white/[0.03]">
       <button
         onClick={() => setOpen((o) => !o)}
-        className="flex w-full items-start gap-3 px-5 py-4 text-left"
+        className="flex w-full items-start gap-3 px-5 py-4 text-left transition hover:bg-white/[0.02]"
       >
         <StatusBadge status={task.status} />
-        <span className="flex-1 text-[15px] font-medium text-zinc-100">
-          {task.prompt}
-        </span>
+        <span className="flex-1 text-[15px] font-medium text-zinc-100">{task.prompt}</span>
         <span className="mt-1 text-zinc-600">{open ? "▾" : "▸"}</span>
       </button>
 

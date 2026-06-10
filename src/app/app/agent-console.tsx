@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { PLANS, type PlanId } from "@/lib/plans";
 
 export type Task = {
   id: string;
@@ -17,25 +18,37 @@ export type Task = {
 export default function AgentConsole({
   email,
   initialTasks,
+  planId,
+  planName,
+  monthlyLimit,
+  usedThisMonth,
 }: {
   email: string;
   initialTasks: Task[];
+  planId: PlanId;
+  planName: string;
+  monthlyLimit: number | null;
+  usedThisMonth: number;
 }) {
   const router = useRouter();
   const [tasks, setTasks] = useState<Task[]>(initialTasks);
   const [prompt, setPrompt] = useState("");
   const [running, setRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [limitReached, setLimitReached] = useState(false);
+  const [upgrading, setUpgrading] = useState(false);
+
+  const atLimit = monthlyLimit !== null && usedThisMonth >= monthlyLimit;
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     const trimmed = prompt.trim();
-    if (!trimmed || running) return;
+    if (!trimmed || running || atLimit) return;
 
     setRunning(true);
     setError(null);
+    setLimitReached(false);
 
-    // Optimistic placeholder while the agent works.
     const tempId = `temp-${Date.now()}`;
     const placeholder: Task = {
       id: tempId,
@@ -57,6 +70,13 @@ export default function AgentConsole({
       });
       const data = await res.json();
 
+      if (res.status === 402 || data?.limitReached) {
+        setLimitReached(true);
+        setError(data?.error ?? "Task limit reached. Please upgrade.");
+        setTasks((prev) => prev.filter((t) => t.id !== tempId));
+        return;
+      }
+
       if (data?.task) {
         setTasks((prev) =>
           prev.map((t) => (t.id === tempId ? (data.task as Task) : t))
@@ -77,12 +97,46 @@ export default function AgentConsole({
     }
   };
 
+  const upgrade = async (targetPlan: PlanId) => {
+    setUpgrading(true);
+    try {
+      const res = await fetch("/api/stripe/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ plan: targetPlan }),
+      });
+      const data = await res.json();
+      if (data?.url) window.location.href = data.url;
+      else setError(data?.error ?? "Could not start checkout.");
+    } catch {
+      setError("Could not start checkout.");
+    } finally {
+      setUpgrading(false);
+    }
+  };
+
+  const manageSubscription = async () => {
+    setUpgrading(true);
+    try {
+      const res = await fetch("/api/stripe/portal", { method: "POST" });
+      const data = await res.json();
+      if (data?.url) window.location.href = data.url;
+      else setError(data?.error ?? "Could not open billing portal.");
+    } catch {
+      setError("Could not open billing portal.");
+    } finally {
+      setUpgrading(false);
+    }
+  };
+
   const signOut = async () => {
     const supabase = createClient();
     await supabase.auth.signOut();
     router.push("/");
     router.refresh();
   };
+
+  const nextPlan = getNextPlan(planId);
 
   return (
     <main className="min-h-screen bg-black text-white">
@@ -95,6 +149,15 @@ export default function AgentConsole({
           </div>
           <div className="flex items-center gap-4">
             <span className="hidden text-sm text-zinc-500 sm:inline">{email}</span>
+            {planId !== "spark" && (
+              <button
+                onClick={manageSubscription}
+                disabled={upgrading}
+                className="rounded-lg border border-white/10 px-3 py-1.5 text-sm text-zinc-300 transition hover:border-white/30 hover:text-white disabled:opacity-50"
+              >
+                Manage plan
+              </button>
+            )}
             <button
               onClick={signOut}
               className="rounded-lg border border-white/10 px-3 py-1.5 text-sm text-zinc-300 transition hover:border-white/30 hover:text-white"
@@ -104,8 +167,40 @@ export default function AgentConsole({
           </div>
         </header>
 
+        {/* Plan badge */}
+        <div className="mt-4 flex items-center gap-3">
+          <span className="rounded-full bg-cyan-500/10 px-3 py-1 text-xs font-medium text-cyan-300 ring-1 ring-cyan-500/20">
+            {planName} plan
+          </span>
+          {monthlyLimit !== null ? (
+            <span className="text-xs text-zinc-500">
+              {usedThisMonth} / {monthlyLimit} tasks this month
+            </span>
+          ) : (
+            <span className="text-xs text-zinc-500">Unlimited tasks</span>
+          )}
+        </div>
+
+        {/* Limit banner */}
+        {(atLimit || limitReached) && nextPlan && (
+          <div className="mt-4 rounded-xl border border-amber-500/30 bg-amber-500/10 px-5 py-4">
+            <p className="text-sm font-medium text-amber-300">
+              You&apos;ve used all {monthlyLimit} tasks on the {planName} plan this month.
+            </p>
+            <div className="mt-3">
+              <button
+                onClick={() => upgrade(nextPlan.id)}
+                disabled={upgrading}
+                className="rounded-lg bg-cyan-400 px-4 py-2 text-sm font-semibold text-black transition hover:bg-cyan-300 disabled:opacity-50"
+              >
+                {upgrading ? "Loading…" : `Upgrade to ${nextPlan.name} — $${nextPlan.usd}/mo`}
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Composer */}
-        <section className="mt-10">
+        <section className="mt-8">
           <h1 className="text-2xl font-bold tracking-tight">
             What should your swarm finish?
           </h1>
@@ -120,16 +215,21 @@ export default function AgentConsole({
               onKeyDown={(e) => {
                 if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) submit(e);
               }}
-              placeholder="e.g. Research the top 3 project-management tools for a 5-person startup and recommend one with reasons."
+              disabled={atLimit}
+              placeholder={
+                atLimit
+                  ? "Task limit reached — upgrade to continue."
+                  : "e.g. Research the top 3 project-management tools for a 5-person startup and recommend one with reasons."
+              }
               rows={4}
               maxLength={4000}
-              className="w-full resize-y rounded-xl border border-white/12 bg-white/5 px-4 py-3 text-[15px] leading-relaxed outline-none transition placeholder:text-zinc-600 focus:border-cyan-400/60"
+              className="w-full resize-y rounded-xl border border-white/12 bg-white/5 px-4 py-3 text-[15px] leading-relaxed outline-none transition placeholder:text-zinc-600 focus:border-cyan-400/60 disabled:cursor-not-allowed disabled:opacity-40"
             />
             <div className="mt-3 flex items-center justify-between">
               <span className="text-xs text-zinc-600">⌘/Ctrl + Enter to run</span>
               <button
                 type="submit"
-                disabled={running || !prompt.trim()}
+                disabled={running || !prompt.trim() || atLimit}
                 className="rounded-xl bg-cyan-400 px-5 py-2.5 font-semibold text-black transition hover:bg-cyan-300 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {running ? "Working…" : "Run agent"}
@@ -137,11 +237,29 @@ export default function AgentConsole({
             </div>
           </form>
 
-          {error && <p className="mt-3 text-sm text-red-400">{error}</p>}
+          {error && !limitReached && (
+            <p className="mt-3 text-sm text-red-400">{error}</p>
+          )}
         </section>
 
+        {/* Upgrade nudge for Spark users who haven't hit the limit yet */}
+        {planId === "spark" && !atLimit && nextPlan && (
+          <div className="mt-4 flex items-center justify-between rounded-xl border border-white/8 bg-white/[0.02] px-5 py-3">
+            <p className="text-sm text-zinc-500">
+              Free plan · {monthlyLimit! - usedThisMonth} tasks left this month
+            </p>
+            <button
+              onClick={() => upgrade(nextPlan.id)}
+              disabled={upgrading}
+              className="rounded-lg bg-white/8 px-3 py-1.5 text-sm font-medium text-zinc-300 transition hover:bg-white/12 disabled:opacity-50"
+            >
+              Upgrade →
+            </button>
+          </div>
+        )}
+
         {/* History */}
-        <section className="mt-10 space-y-4 pb-12">
+        <section className="mt-8 space-y-4 pb-12">
           {tasks.length === 0 && (
             <p className="text-sm text-zinc-600">
               No tasks yet. Your finished work will appear here.
@@ -154,6 +272,15 @@ export default function AgentConsole({
       </div>
     </main>
   );
+}
+
+function getNextPlan(current: PlanId): { id: PlanId; name: string; usd: number } | null {
+  const order: PlanId[] = ["spark", "build", "pro", "max", "enterprise"];
+  const idx = order.indexOf(current);
+  if (idx === -1 || idx === order.length - 1) return null;
+  const next = order[idx + 1];
+  const p = PLANS[next];
+  return { id: next, name: p.name, usd: p.usd };
 }
 
 function TaskCard({ task }: { task: Task }) {
@@ -205,9 +332,7 @@ function StatusBadge({ status }: { status: Task["status"] }) {
   };
   const { label, cls } = map[status];
   return (
-    <span
-      className={`mt-0.5 shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium ${cls}`}
-    >
+    <span className={`mt-0.5 shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium ${cls}`}>
       {label}
     </span>
   );

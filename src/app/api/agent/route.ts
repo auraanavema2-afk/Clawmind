@@ -1,11 +1,9 @@
 import { GoogleGenAI } from "@google/genai";
 import { createClient } from "@/lib/supabase/server";
+import { PLANS, type PlanId } from "@/lib/plans";
 
-// Agent runs can take a while (reasoning + web search). Give the function room.
 export const maxDuration = 60;
 
-// Gemini 2.5 Flash is fast, capable, and available on Google's free tier.
-// Swapping providers later is a one-line model change.
 const MODEL = "gemini-2.5-flash";
 
 const SYSTEM_PROMPT = `You are ClawMind — an autonomous AI agent that finishes real work.
@@ -22,9 +20,7 @@ const ai = new GoogleGenAI({ apiKey: process.env.GOOGLE_API_KEY });
 
 export async function POST(request: Request) {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { data: { user } } = await supabase.auth.getUser();
 
   if (!user) {
     return Response.json({ error: "Not authenticated" }, { status: 401 });
@@ -48,7 +44,41 @@ export async function POST(request: Request) {
     );
   }
 
-  // Record the task immediately so it survives even if the run is slow.
+  // Check plan limits
+  const { data: sub } = await supabase
+    .from("subscriptions")
+    .select("plan, status")
+    .eq("user_id", user.id)
+    .single();
+
+  const planId: PlanId = (sub?.plan as PlanId) ?? "spark";
+  const plan = PLANS[planId];
+  const limit = plan.monthlyTasks;
+
+  if (limit !== null) {
+    const monthStart = new Date();
+    monthStart.setDate(1);
+    monthStart.setHours(0, 0, 0, 0);
+
+    const { count } = await supabase
+      .from("tasks")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", user.id)
+      .neq("status", "error")
+      .gte("created_at", monthStart.toISOString());
+
+    if ((count ?? 0) >= limit) {
+      return Response.json(
+        {
+          error: `You've used all ${limit} tasks on the ${plan.name} plan this month. Upgrade to run more.`,
+          limitReached: true,
+          plan: planId,
+        },
+        { status: 402 }
+      );
+    }
+  }
+
   const { data: task, error: insertError } = await supabase
     .from("tasks")
     .insert({ user_id: user.id, prompt, status: "running" })
@@ -68,7 +98,6 @@ export async function POST(request: Request) {
       contents: prompt,
       config: {
         systemInstruction: SYSTEM_PROMPT,
-        // Google Search grounding lets the agent pull in current, real info.
         tools: [{ googleSearch: {} }],
       },
     });

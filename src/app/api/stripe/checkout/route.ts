@@ -39,6 +39,7 @@ export async function POST(request: Request) {
     customer: sub?.stripe_customer_id ?? undefined,
     customer_email: sub?.stripe_customer_id ? undefined : user.email!,
     line_items: [{ price: plan.stripePriceId, quantity: 1 }],
+    allow_promotion_codes: true,
     success_url: `${origin}/app?upgraded=1`,
     cancel_url: `${origin}/app`,
     metadata: { user_id: user.id, plan: planId },

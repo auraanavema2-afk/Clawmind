@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { PLANS, type PlanId } from "@/lib/plans";
+import { AGENTS, type AgentName } from "@/lib/agents";
 
 export type Task = {
   id: string;
@@ -11,6 +12,7 @@ export type Task = {
   status: "queued" | "running" | "done" | "error";
   result: string | null;
   error: string | null;
+  agents: string[] | null;
   created_at: string;
   updated_at: string;
 };
@@ -62,6 +64,7 @@ export default function AgentConsole({
       status: "running",
       result: null,
       error: null,
+      agents: null,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
@@ -353,7 +356,7 @@ function TaskCard({ task }: { task: Task }) {
           {task.status === "running" && (
             <p className="flex items-center gap-2 text-sm text-cyan-300">
               <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-cyan-400/40 border-t-cyan-300" />
-              The agent is researching and writing…
+              The swarm is working — Superhuman is coordinating the specialists…
             </p>
           )}
           {task.status === "error" && (
@@ -362,9 +365,28 @@ function TaskCard({ task }: { task: Task }) {
             </p>
           )}
           {task.status === "done" && (
-            <div className="whitespace-pre-wrap text-[15px] leading-relaxed text-zinc-200">
-              {task.result}
-            </div>
+            <>
+              {task.agents && task.agents.length > 0 && (
+                <div className="mb-4 flex flex-wrap items-center gap-1.5">
+                  <span className="text-xs text-zinc-500">Swarm:</span>
+                  {task.agents.map((a) => {
+                    const meta = AGENTS[a as AgentName];
+                    return (
+                      <span
+                        key={a}
+                        title={meta?.tagline}
+                        className="rounded-full bg-cyan-500/10 px-2 py-0.5 text-xs font-medium text-cyan-300 ring-1 ring-cyan-500/20"
+                      >
+                        {meta?.title ?? a}
+                      </span>
+                    );
+                  })}
+                </div>
+              )}
+              <div className="whitespace-pre-wrap text-[15px] leading-relaxed text-zinc-200">
+                {task.result}
+              </div>
+            </>
           )}
         </div>
       )}

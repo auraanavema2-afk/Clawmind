@@ -1,22 +1,8 @@
-import { GoogleGenAI } from "@google/genai";
 import { createClient } from "@/lib/supabase/server";
 import { PLANS, type PlanId } from "@/lib/plans";
+import { runSwarm } from "@/lib/swarm";
 
 export const maxDuration = 60;
-
-const MODEL = "gemini-2.5-flash";
-
-const SYSTEM_PROMPT = `You are ClawMind — an autonomous AI agent that finishes real work.
-
-The user hands you a single goal. Your job is to deliver the FINISHED result, not a plan or a list of steps you "would" take. Do the work and present the completed deliverable.
-
-Guidelines:
-- If current, real-world, or factual information matters, use Google Search to look it up rather than guessing.
-- Produce a polished, self-contained answer the user can use immediately (an email, a plan, code, research findings, a draft, etc.).
-- Use clear formatting (headings, lists) when it helps readability.
-- Be thorough but do not pad. Quality over length.`;
-
-const ai = new GoogleGenAI({ apiKey: process.env.GOOGLE_API_KEY });
 
 export async function POST(request: Request) {
   const supabase = await createClient();
@@ -93,22 +79,16 @@ export async function POST(request: Request) {
   }
 
   try {
-    const response = await ai.models.generateContent({
-      model: MODEL,
-      contents: prompt,
-      config: {
-        systemInstruction: SYSTEM_PROMPT,
-        tools: [{ googleSearch: {} }],
-      },
-    });
-
-    const resultText = (response.text ?? "").trim();
+    // Run the 8-agent swarm: Superhuman plans → specialists work →
+    // Beam synthesizes → Echo finalizes.
+    const { result: resultText, agentsUsed } = await runSwarm(prompt);
 
     const { data: updated } = await supabase
       .from("tasks")
       .update({
         status: "done",
-        result: resultText || "(The agent returned no text.)",
+        result: resultText || "(The swarm returned no text.)",
+        agents: agentsUsed,
         updated_at: new Date().toISOString(),
       })
       .eq("id", task.id)
